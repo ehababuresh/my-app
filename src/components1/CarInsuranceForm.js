@@ -106,4 +106,5 @@ function CarInsuranceForm({ formData, handleChange }) {
   );
 }
 
+
 export default CarInsuranceForm;

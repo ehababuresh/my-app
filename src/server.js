@@ -1,4 +1,4 @@
-require('dotenv').config(); // טוען משתני סביבה מקובץ .env
+require('dotenv').config();
 const express = require('express');
 const nodemailer = require('nodemailer');
 const cors = require('cors');
@@ -8,7 +8,7 @@ const mongoose = require('mongoose');
 const app = express();
 const port = 5000;
 
-// הגדרת Middleware
+// Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -22,7 +22,7 @@ mongoose.connect('mongodb://localhost:27017/insuranceDB', {
   console.error('שגיאה בחיבור ל-MongoDB:', error);
 });
 
-// הגדרת סכימה למידע של הצעת הביטוח
+// סכימה למסד הנתונים
 const insuranceSchema = new mongoose.Schema({
   name: String,
   email: String,
@@ -35,42 +35,43 @@ const insuranceSchema = new mongoose.Schema({
   idNumber: String,
 });
 
-// יצירת מודל מהסכימה
 const Insurance = mongoose.model('Insurance', insuranceSchema);
 
-// מסלול לשליחת מייל ושמירת ההצעה למסד הנתונים
+// מסלול לשליחת מייל ושמירת ההצעה
 app.post('/send-email', async (req, res) => {
+  console.log("Received request body:", req.body);
   const { name, email, phone, insuranceType, hasInsurance, yearsOfInsurance, hadAccidents, carNumber, idNumber } = req.body;
 
-  // יצירת הצעה חדשה ושמירתה ב-MongoDB
+  if (!name || !email || !phone || !insuranceType || !idNumber) {
+    return res.status(400).send("שגיאה: נא למלא את כל השדות הנדרשים");
+  }
+
   const newInsurance = new Insurance({
     name,
     email,
     phone,
     insuranceType,
-    hasInsurance,
-    yearsOfInsurance,
-    hadAccidents,
-    carNumber,
+    hasInsurance: hasInsurance || false,
+    yearsOfInsurance: yearsOfInsurance || 0,
+    hadAccidents: hadAccidents || false,
+    carNumber: carNumber || '',
     idNumber,
   });
 
   try {
-    await newInsurance.save(); // שמירת ההצעה ב-MongoDB
-
-    // הגדרת חשבון המייל לשליחה (כגון Gmail)
+    await newInsurance.save();
+    
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {
-        user: process.env.EMAIL_USER, // כתובת המייל שלך (יש לשמור ב-.env)
-        pass: process.env.EMAIL_PASS  // סיסמת המייל שלך (יש לשמור ב-.env)
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
       }
     });
 
-    // הגדרת תוכן המייל
     const mailOptions = {
       from: process.env.EMAIL_USER,
-      to: 'ehab.ab24@gmail.com', // כתובת הנמען (המייל שלך לקבלת הצעה)
+      to: 'ehab.ab24@gmail.com',
       subject: 'בקשת הצעת ביטוח חדשה',
       text: `
         שם: ${name}
@@ -85,16 +86,20 @@ app.post('/send-email', async (req, res) => {
       `
     };
 
-    // שליחת המייל
-    await transporter.sendMail(mailOptions);
-    res.status(200).send('המייל נשלח בהצלחה');
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending email:', error);
+        return res.status(500).send("שגיאה בשליחת המייל");
+      }
+      console.log("Email sent:", info.response);
+      res.status(200).send("המייל נשלח בהצלחה");
+    });
   } catch (error) {
     console.error('שגיאה בתהליך:', error);
     res.status(500).send('שגיאה בתהליך - בדוק את החיבור למסד הנתונים או שליחת המייל.');
   }
 });
 
-// הפעלת השרת
 app.listen(port, () => {
   console.log(`השרת רץ על פורט ${port}`);
 });
